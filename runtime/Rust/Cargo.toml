@@ -1,0 +1,11 @@
+[package]
+name = "antlr_runtime"
+version = "0.1.0"
+authors = ["Arshinskiy Mike <neatnerd@users.noreply.github.com>"]
+
+[lib]
+name = "antlr_runtime"
+
+[dependencies]
+
+
