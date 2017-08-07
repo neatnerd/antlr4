@@ -12,6 +12,18 @@ pub trait Token:ToString {
     fn get_input_stream(&self) -> &CharStream;  
 }
 
+pub enum Token_Type{
+    INVALID_TYPE,
+    EPSILON,
+    EOF,
+    USER(usize),
+}
+
+pub const TOKEN_INVALID_TYPE:usize = 0;
+pub const TOKEN_EPSILON:usize = 1;
+pub const TOKEN_EOF:usize = 2;
+pub const TOKEN_MIN_USER_TOKEN_TYPE:usize = 3;
+
 pub trait TokenSource {
     fn next_token(&mut self) -> Token;
     fn get_line(&self) -> usize;

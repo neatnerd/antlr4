@@ -99,11 +99,7 @@ impl Clone for IntervalSet {
 
 impl fmt::Display for IntervalSet{
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result{
-		if self.intervals.is_empty(){
-			try!(f.write_str("{}"));
-			return Ok(());
-		}
-		Ok(())
+		write!(f, "{}", self.to_internal_string(false))
 	}
 }
 
@@ -342,11 +338,75 @@ impl IntervalSet {
 		return Some(self.intervals[0].start);
 	}
 	
-	fn size(&self) -> usize{
+	pub fn size(&self) -> usize{
 		let mut n = 0isize;
 		for i in &self.intervals{
 			n += i.stop - i.start + 1;
 		}
 		return numeric_to_symbol(n);
+	}
+
+	pub fn string_verbose(&self, literal_names:&[String], symbolic_names:&[String], elems_are_char:bool) -> String{
+		if self.intervals.is_empty(){
+			return String::from("");
+		}
+		else if !literal_names.is_empty() || !symbolic_names.is_empty(){
+			return self.to_token_string(literal_names, symbolic_names);
+		}
+		return self.to_internal_string(elems_are_char);
+	}
+
+	fn to_token_string(&self, literal_name:&[String], symbolic_names:&[String]) -> String{
+		return String::from("");
+	}
+	fn to_internal_string(&self, elems_are_char:bool) -> String{
+		let mut buf = String::new();
+		let effective_size = self.size();
+		if effective_size > 1{
+			buf.push('{');
+		}
+		let mut first_entry = true;
+		for interval in &self.intervals{
+			if !first_entry{
+				buf.push_str(", ")
+			}
+			first_entry = false;
+			let start = interval.start;
+			let stop = interval.stop;
+			if start == stop {
+				if start == DEFAULT_EMPTY_START
+				{
+					buf.push_str("<EOF>");
+				}
+				else if elems_are_char{
+					buf.push('\'');
+					buf.push((start as u8) as char);
+					buf.push('\'');
+				}
+				else {
+					buf.push_str(format!("{}", start).as_str()); // TODO: Reformat this shit
+				}
+			}
+			else {
+				if elems_are_char{
+					buf.push('\'');
+					buf.push((start as u8) as char);
+					buf.push('.');
+					buf.push('.');
+					buf.push((stop as u8) as char);
+				}
+				else {
+					buf.push_str(format!("{}..{}", start, stop).as_str());
+				}
+			}
+		}
+		if effective_size > 1{
+			buf.push('}');
+		}
+		return buf;
+	}
+
+	fn element_name(literal_names:&[String], symbolic_names:&[String]) -> String{
+		 return String::from("");
 	}
 }
