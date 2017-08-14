@@ -1,5 +1,5 @@
 use std::cmp;
-use definitions::Token_Type;
+use definitions::TokenType;
 
 #[derive(Debug,PartialEq)]
 pub struct Vocabulary {
@@ -18,6 +18,8 @@ pub fn empty_vocabulary() -> &'static Vocabulary {
     &*EMPTY_VOCABULARY
 }
 */  
+
+
 
 impl Vocabulary{
     pub fn new(literal_names:&[String], symbolic_names:&[String],
@@ -67,38 +69,39 @@ impl Vocabulary{
         self.max_toke_type
     }
 
-    pub fn get_literal_name(&self, token_type:&Token_Type) -> &str{
-        if let Token_Type::USER(token) = *token_type{
+    pub fn get_literal_name(&self, token_type:&TokenType) -> String{
+        if let TokenType::USER(token) = *token_type{
             if token < self.literal_names.len(){
-                return self.literal_names[token].as_str();
+                return self.literal_names[token].clone();
             }
         }
-        return "";
+        return String::from("");
     }
 
-    pub fn get_symbolic_name(&self, token_type:&Token_Type) -> &str{
+    pub fn get_symbolic_name(&self, token_type:&TokenType) -> String{
         match *token_type{
-            Token_Type::EOF => "EOF",
-            Token_Type::USER(token) if token < self.symbolic_names.len() => self.symbolic_names[token].as_str(),
-            _ => ""
+            TokenType::EOF => String::from("EOF"),
+            TokenType::USER(token) if token < self.symbolic_names.len() => self.symbolic_names[token].clone(),
+            _ => String::from("EOF")
         }
     }
 
-    pub fn get_display_name(&self, token_type:&Token_Type) -> &str{
-        if let Token_Type::USER(token) = *token_type{
-            if token < self.display_names.len(){
-                return self.display_names[token].as_str();
-            }
+    pub fn get_display_name(&self, token_type:&TokenType) -> String{
+    if let TokenType::USER(token) = *token_type{
+        if token < self.display_names.len(){
+            return self.display_names[token].clone();
         }
-        let literal_name = self.get_literal_name(token_type);
-        if !literal_name.is_empty(){
-            return literal_name;
-        }
-        let symbolic_name = self.get_symbolic_name(token_type);
-        if !symbolic_name.is_empty(){
-            return symbolic_name;
-        }
-        return "";
+    }
+
+    let literal_name = self.get_literal_name(token_type);
+    if !literal_name.is_empty(){
+        return literal_name;
+    }
+    let symbolic_name = self.get_symbolic_name(token_type);
+    if !symbolic_name.is_empty(){
+        return symbolic_name;
+    }
+    return token_type.as_string();
     }
 
 }

@@ -12,17 +12,32 @@ pub trait Token:ToString {
     fn get_input_stream(&self) -> &CharStream;  
 }
 
-pub enum Token_Type{
-    INVALID_TYPE,
-    EPSILON,
+pub enum TokenType {
+    InvalidType,
+    Epsilon,
     EOF,
     USER(usize),
 }
 
-pub const TOKEN_INVALID_TYPE:usize = 0;
-pub const TOKEN_EPSILON:usize = 1;
-pub const TOKEN_EOF:usize = 2;
-pub const TOKEN_MIN_USER_TOKEN_TYPE:usize = 3;
+impl TokenType {
+    pub fn as_string(&self) -> String{
+        match *self{
+            TokenType::InvalidType => String::from("INVALID_TYPE"),
+            TokenType::Epsilon => String::from("EPSILON"),
+            TokenType::EOF => String::from("EOF"),
+            TokenType::USER(token) => format!("{}", token),
+            //_ => String::from("UNKNOWN_TOKEN"),
+        }
+    }
+    pub fn from_size(index:isize) -> Self{
+        match index{
+            -2  =>  TokenType::Epsilon,
+            -1  =>  TokenType::EOF,
+            0   =>  TokenType::InvalidType,
+            _   =>  TokenType::USER(index as usize)
+        }
+    }
+}
 
 pub trait TokenSource {
     fn next_token(&mut self) -> Token;

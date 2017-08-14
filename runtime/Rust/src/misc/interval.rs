@@ -1,5 +1,7 @@
 use std::cmp::{min,max};
 use std::fmt;
+use definitions::TokenType;
+
 
 #[derive(Debug,PartialEq,Hash,Clone,Copy)]
 pub struct Interval {
@@ -177,7 +179,58 @@ impl IntervalSet {
 		self.intervals.push(*addition);
 	}
 
-	pub fn or(sets:&[IntervalSet]) -> IntervalSet{
+    pub fn add_range(&mut self, start: isize, stop: isize){
+        self.add(&Interval::new(start, stop));
+    }
+
+    pub fn add_all(&mut self, set:&IntervalSet) -> &IntervalSet{
+        for e in &set.intervals{
+            self.add(e);
+        }
+        self
+    }
+
+    pub fn remove(&mut self, el:isize){
+        if self.readonly{
+            panic!("can't alter read only IntervalSet");
+        }
+
+
+        let len = self.intervals.len();
+
+        for i in 0..len{
+			let interval = self.intervals[i].clone();
+            let (start, stop) = (interval.start, interval.stop);
+            if el < start {
+                break; // list is sorted and el is before this interval; not here
+            }
+            // if whole interval x..x, rm
+            if el==start && el == stop{
+                self.intervals.remove(i);
+                break;
+            }
+            // if whole interval x..x, rm
+            if el == start{
+                self.intervals[i].start +=  1;
+                break;
+            }
+            // if on right edge a..x, adjust right
+            if el == stop{
+                self.intervals[i].start -=  1;
+                break;
+            }
+            // if in middle a..x..b, split interval
+            if el > start && el < stop{ // found in this interval
+                let oldstop = interval.stop;
+                self.intervals[i].stop = el - 1; // [a..x-1]
+                self.add_range(el +1, oldstop); // add [x+1..b]
+                break;
+            }
+
+		}
+    }
+
+    pub fn or(sets:&[IntervalSet]) -> IntervalSet{
 		let mut res = IntervalSet::new();
 		for e in sets{
 			res.add_all(e);
@@ -185,12 +238,6 @@ impl IntervalSet {
 		return res;
 	}
 
-	pub fn add_all(&mut self, set:&IntervalSet) -> &IntervalSet{
-		for e in &set.intervals{
-			self.add(e);
-		}
-		self
-	}
 
 	pub fn complement(&self, vocabulary: &IntervalSet) -> IntervalSet{
 		vocabulary.substract(self)
@@ -357,7 +404,16 @@ impl IntervalSet {
 	}
 
 	fn to_token_string(&self, literal_name:&[String], symbolic_names:&[String]) -> String{
-		return String::from("");
+		let mut names = vec![];
+        for i in &self.intervals{
+			for j in i.start..i.stop{
+                names.push(self.element_name(literal_name, symbolic_names, j));
+            }
+		}
+        if names.len() > 1{
+            return format!("{{ {} }}", names.join(", "));
+        }
+        return names[0].clone();
 	}
 	fn to_internal_string(&self, elems_are_char:bool) -> String{
 		let mut buf = String::new();
@@ -406,7 +462,18 @@ impl IntervalSet {
 		return buf;
 	}
 
-	fn element_name(literal_names:&[String], symbolic_names:&[String]) -> String{
-		 return String::from("");
+	fn element_name(&self, literal_names:&[String], symbolic_names:&[String], a:isize) -> String{
+        let token = TokenType::from_size(a);
+        match token{
+            TokenType::EOF => String::from("<EOF>"),
+            TokenType::Epsilon => String::from("<EPSILON>"),
+            _ => {
+                let pos = a as usize;
+                if pos < literal_names.len() && !literal_names[pos].is_empty(){
+                    return literal_names[pos].clone();
+                }
+                return symbolic_names[pos].clone();
+            }
+        }
 	}
 }
