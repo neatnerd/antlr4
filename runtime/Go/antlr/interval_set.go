@@ -14,10 +14,9 @@ type Interval struct {
 	Stop  int
 }
 
-/* stop is not included! */
+/* Inclusive interval*/
 func NewInterval(start, stop int) *Interval {
 	i := new(Interval)
-
 	i.Start = start
 	i.Stop = stop
 	return i
@@ -28,15 +27,15 @@ func (i *Interval) Contains(item int) bool {
 }
 
 func (i *Interval) String() string {
-	if i.Start == i.Stop-1 {
+	if i.Start == i.Stop {
 		return strconv.Itoa(i.Start)
 	}
 
-	return strconv.Itoa(i.Start) + ".." + strconv.Itoa(i.Stop-1)
+	return strconv.Itoa(i.Start) + ".." + strconv.Itoa(i.Stop)
 }
 
 func (i *Interval) length() int {
-	return i.Stop - i.Start
+	return intMax(i.Stop-i.Start+1, 0)
 }
 
 type IntervalSet struct {
@@ -54,6 +53,14 @@ func NewIntervalSet() *IntervalSet {
 	return i
 }
 
+func (i *IntervalSet) insertAt(index int, interval *Interval) {
+	i.intervals = append(i.intervals[:index], append([]*Interval{interval}, i.intervals[index:]...)...)
+}
+
+func (i *IntervalSet) removeAt(index int) {
+	i.intervals = append(i.intervals[:index], i.intervals[index+1:]...)
+}
+
 func (i *IntervalSet) first() int {
 	if len(i.intervals) == 0 {
 		return TokenInvalidType
@@ -67,7 +74,7 @@ func (i *IntervalSet) addOne(v int) {
 }
 
 func (i *IntervalSet) addRange(l, h int) {
-	i.addInterval(NewInterval(l, h+1))
+	i.addInterval(NewInterval(l, h))
 }
 
 func (i *IntervalSet) addInterval(v *Interval) {
@@ -88,22 +95,27 @@ func (i *IntervalSet) addInterval(v *Interval) {
 				i.intervals[k] = NewInterval(intMin(interval.Start, v.Start), intMax(interval.Stop, v.Stop))
 
 				// if not applying to end, merge potential overlaps
-				if k < len(i.intervals)-1 {
-					l := i.intervals[k]
-					r := i.intervals[k+1]
-					// if r contained in l
-					if l.Stop >= r.Stop {
-						i.intervals = append(i.intervals[0:k+1], i.intervals[k+2:]...)
-					} else if l.Stop >= r.Start { // partial overlap
-						i.intervals[k] = NewInterval(l.Start, r.Stop)
-						i.intervals = append(i.intervals[0:k+1], i.intervals[k+2:]...)
-					}
-				}
+				i.reduce(k)
 				return
 			}
 		}
 		// greater than any exiting
 		i.intervals = append(i.intervals, v)
+	}
+}
+
+func (i *IntervalSet) reduce(k int) {
+	if k < len(i.intervals)-1 {
+		l := i.intervals[k]
+		r := i.intervals[k+1]
+		if l.Stop >= r.Stop {
+			i.removeAt(k + 1)
+			i.reduce(k)
+		} else if l.Stop >= r.Start {
+			i.intervals[k].Start = l.Start
+			i.intervals[k].Stop = r.Stop
+			i.removeAt(k + 1)
+		}
 	}
 }
 
@@ -153,25 +165,26 @@ func (i *IntervalSet) removeRange(v *Interval) {
 		i.removeOne(v.Start)
 	} else if i.intervals != nil {
 		k := 0
-		for n := 0; n < len(i.intervals); n++ {
+		for k < len(i.intervals) {
 			ni := i.intervals[k]
 			// intervals are ordered
 			if v.Stop <= ni.Start {
 				return
 			} else if v.Start > ni.Start && v.Stop < ni.Stop {
-				i.intervals[k] = NewInterval(ni.Start, v.Start)
+				//check for including range, split it
 				x := NewInterval(v.Stop, ni.Stop)
+				ni.Stop = v.Start
 				// i.intervals.splice(k, 0, x)
-				i.intervals = append(i.intervals[0:k], append([]*Interval{x}, i.intervals[k:]...)...)
+				i.insertAt(k+1, x)
 				return
 			} else if v.Start <= ni.Start && v.Stop >= ni.Stop {
-				//                i.intervals.splice(k, 1)
+				// check for included range, remove it
 				i.intervals = append(i.intervals[0:k], i.intervals[k+1:]...)
-				k = k - 1 // need another pass
+				k-- // need another pass
 			} else if v.Start < ni.Stop {
-				i.intervals[k] = NewInterval(ni.Start, v.Start)
+				ni.Stop = v.Start
 			} else if v.Stop < ni.Stop {
-				i.intervals[k] = NewInterval(v.Stop, ni.Stop)
+				ni.Start = v.Stop
 			}
 			k++
 		}
@@ -186,19 +199,22 @@ func (i *IntervalSet) removeOne(v int) {
 			if v < ki.Start {
 				return
 			} else if v == ki.Start && v == ki.Stop-1 {
-				//				i.intervals.splice(k, 1)
+				// list is sorted and el is before this interval; not here
+				// if whole interval x..x, rm
 				i.intervals = append(i.intervals[0:k], i.intervals[k+1:]...)
 				return
 			} else if v == ki.Start {
-				i.intervals[k] = NewInterval(ki.Start+1, ki.Stop)
+				// if on left edge x..b, adjust left
+				ki.Start++
 				return
-			} else if v == ki.Stop-1 {
-				i.intervals[k] = NewInterval(ki.Start, ki.Stop-1)
+			} else if v == ki.Stop {
+				// if on right edge a..x, adjust right
+				ki.Stop--
 				return
-			} else if v < ki.Stop-1 {
-				x := NewInterval(ki.Start, v)
+			} else if v < ki.Stop {
+				// if in middle a..x..b, split interval
+				x := NewInterval(ki.Start, v-1)
 				ki.Start = v + 1
-				//				i.intervals.splice(k, 0, x)
 				i.intervals = append(i.intervals[0:k], append([]*Interval{x}, i.intervals[k:]...)...)
 				return
 			}
@@ -235,14 +251,16 @@ func (i *IntervalSet) toCharString() string {
 				names = append(names, ("'" + string(v.Start) + "'"))
 			}
 		} else {
-			names = append(names, "'"+string(v.Start)+"'..'"+string(v.Stop-1)+"'")
+			names = append(names, "'"+string(v.Start)+"'..'"+string(v.Stop)+"'")
 		}
 	}
 	if len(names) > 1 {
 		return "{" + strings.Join(names, ", ") + "}"
+	} else if len(names) == 1 {
+		return names[0]
+	} else {
+		return "{}"
 	}
-
-	return names[0]
 }
 
 func (i *IntervalSet) toIndexString() string {
@@ -257,14 +275,16 @@ func (i *IntervalSet) toIndexString() string {
 				names = append(names, strconv.Itoa(v.Start))
 			}
 		} else {
-			names = append(names, strconv.Itoa(v.Start)+".."+strconv.Itoa(v.Stop-1))
+			names = append(names, strconv.Itoa(v.Start)+".."+strconv.Itoa(v.Stop))
 		}
 	}
 	if len(names) > 1 {
 		return "{" + strings.Join(names, ", ") + "}"
+	} else if len(names) == 1 {
+		return names[0]
+	} else {
+		return "{}"
 	}
-
-	return names[0]
 }
 
 func (i *IntervalSet) toTokenString(literalNames []string, symbolicNames []string) string {
